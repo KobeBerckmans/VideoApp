@@ -15,11 +15,7 @@ struct ContentView: View {
 
     var body: some View {
         VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-                .padding()
+            
             
             Button(action: {
                 showVideoEditor.toggle() // Toggle the state variable

@@ -280,20 +280,102 @@ class VideoEditorViewController: UIViewController, UIPickerViewDelegate, UIPicke
 
 
     @objc func addText() {
-        overlayText = textInput.text ?? ""
-        
-        // Voeg tekstlaag toe aan de video
-        let textLayer = CATextLayer()
-        textLayer.string = overlayText
-        textLayer.fontSize = 24
-        textLayer.foregroundColor = UIColor.white.cgColor
-        textLayer.alignmentMode = .center
-        textLayer.contentsScale = UIScreen.main.scale
-        textLayer.frame = CGRect(x: 20, y: 20, width: view.bounds.width - 40, height: 40)
-        
-        playerLayer.addSublayer(textLayer)
-        print("Tekst toegevoegd: \(overlayText)")
+        let addTextVC = AddTextViewController()
+        addTextVC.completion = { [weak self] text, time in
+            // Hier kun je de logica toevoegen om de tekst aan de video toe te voegen
+            self?.performAddText(text: text, at: time)
+        }
+        present(addTextVC, animated: true, completion: nil)
     }
+
+    func performAddText(text: String, at time: Double) {
+        guard let videoURL = videoURL else {
+            print("Video URL is nil")
+            return
+        }
+
+        let asset = AVAsset(url: videoURL)
+        let composition = AVMutableComposition()
+
+        guard let videoTrack = asset.tracks(withMediaType: .video).first,
+              let audioTrack = asset.tracks(withMediaType: .audio).first else {
+            print("Geen video track gevonden.")
+            return
+        }
+
+        // Voeg de video track toe aan de composition
+        let compositionVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
+
+        do {
+            // Voeg de video track toe aan de composition
+            try compositionVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: videoTrack.timeRange.duration), of: videoTrack, at: .zero)
+            
+            // Voeg de audio track toe
+            let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+            try compositionAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: audioTrack.timeRange.duration), of: audioTrack, at: .zero)
+
+            // Configureer de video composition
+            let videoComposition = AVMutableVideoComposition(asset: composition) { request in
+                let sourceImage = request.sourceImage.clampedToExtent()
+
+                // Genereer de tekstafbeelding
+                guard let textImage = self.textToImage(text: text, size: sourceImage.extent.size) else {
+                    request.finish(with: sourceImage, context: nil)
+                    return
+                }
+
+                // Bereken de tijd waarop de tekst moet verschijnen
+                let currentTime = CMTimeGetSeconds(request.compositionTime)
+                let displayDuration = 5.0 // Hoe lang de tekst zichtbaar moet zijn
+                let textVisible = currentTime >= time && currentTime <= (time + displayDuration)
+
+                // Voeg de tekst alleen toe als deze zichtbaar moet zijn
+                let finalImage: CIImage
+                if textVisible {
+                    finalImage = sourceImage.composited(over: textImage)
+                } else {
+                    finalImage = sourceImage
+                }
+
+                // Geef de finale afbeelding terug aan de request
+                request.finish(with: finalImage, context: nil)
+            }
+
+            // Stel de frame rate in
+            videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+            
+            // Voeg video compositie toe aan AVPlayerItem
+            let playerItem = AVPlayerItem(asset: composition)
+            playerItem.videoComposition = videoComposition
+            player.replaceCurrentItem(with: playerItem)
+            player.play()
+
+            print("Tekst '\(text)' toegevoegd op tijd \(time) seconden")
+        } catch {
+            print("Fout bij het toevoegen van tekst: \(error)")
+        }
+    }
+
+    private func textToImage(text: String, size: CGSize) -> CIImage? {
+        // Gebruik de volledige grootte van de video
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let img = renderer.image { context in
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = .center
+            
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 60), // Pas de grootte aan indien nodig
+                .paragraphStyle: paragraphStyle,
+                .foregroundColor: UIColor.red // Zorg ervoor dat de tekst goed zichtbaar is
+            ]
+            
+            let textRect = CGRect(x: 0, y: (size.height - 50) / 2, width: size.width, height: 50)
+            text.draw(in: textRect, withAttributes: attrs)
+        }
+
+        return CIImage(image: img)
+    }
+
 
 
     @objc func exportVideo() {
@@ -301,20 +383,43 @@ class VideoEditorViewController: UIViewController, UIPickerViewDelegate, UIPicke
             print("Geen video URL gevonden voor export.")
             return
         }
-        
-        let exportSession = AVAssetExportSession(asset: AVAsset(url: videoURL), presetName: AVAssetExportPresetHighestQuality)
-        
-        let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("exportedVideo.mp4")
-        try? FileManager.default.removeItem(at: outputURL) // Verwijder de vorige export indien deze bestaat
-        
-        exportSession?.outputURL = outputURL
-        exportSession?.outputFileType = .mp4
-        exportSession?.exportAsynchronously {
-            switch exportSession?.status {
+
+        let asset = AVAsset(url: videoURL)
+
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
+            print("Kon geen export sessie maken.")
+            return
+        }
+
+        // Verkrijg de Document Directory
+        let fileManager = FileManager.default
+        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let outputURL = documentsDirectory.appendingPathComponent("exportedVideo.mp4")
+
+        // Log de output URL
+        print("Output URL: \(outputURL)")
+
+        // Verwijder de vorige export indien deze bestaat
+        if fileManager.fileExists(atPath: outputURL.path) {
+            do {
+                try fileManager.removeItem(at: outputURL)
+                print("Vorige export verwijderd.")
+            } catch {
+                print("Fout bij het verwijderen van het oude bestand: \(error.localizedDescription)")
+            }
+        }
+
+        // Configureer export session
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+
+        // Start de export asynchroon
+        exportSession.exportAsynchronously {
+            switch exportSession.status {
             case .completed:
                 print("Video succesvol geëxporteerd naar: \(outputURL)")
             case .failed:
-                print("Export mislukt: \(String(describing: exportSession?.error))")
+                print("Export mislukt: \(String(describing: exportSession.error))")
             case .cancelled:
                 print("Export geannuleerd.")
             default:
@@ -322,6 +427,9 @@ class VideoEditorViewController: UIViewController, UIPickerViewDelegate, UIPicke
             }
         }
     }
+
+
+
 
     // MARK: - PickerView DataSource Methods
 
