@@ -384,30 +384,22 @@ class VideoEditorViewController: UIViewController, UIPickerViewDelegate, UIPicke
             return
         }
 
+        // Maak een AVAsset van de video
         let asset = AVAsset(url: videoURL)
-
+        
+        // Maak een export session aan met de hoogste kwaliteit
         guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
             print("Kon geen export sessie maken.")
             return
         }
 
-        // Verkrijg de Document Directory
+        // Stel het output pad in voor exporteren naar de Desktop
         let fileManager = FileManager.default
-        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let outputURL = documentsDirectory.appendingPathComponent("exportedVideo.mp4")
-
-        // Log de output URL
-        print("Output URL: \(outputURL)")
+        let desktopDirectory = fileManager.urls(for: .desktopDirectory, in: .userDomainMask).first!
+        let outputURL = desktopDirectory.appendingPathComponent("exportedVideo.mp4")
 
         // Verwijder de vorige export indien deze bestaat
-        if fileManager.fileExists(atPath: outputURL.path) {
-            do {
-                try fileManager.removeItem(at: outputURL)
-                print("Vorige export verwijderd.")
-            } catch {
-                print("Fout bij het verwijderen van het oude bestand: \(error.localizedDescription)")
-            }
-        }
+        try? fileManager.removeItem(at: outputURL)
 
         // Configureer export session
         exportSession.outputURL = outputURL
@@ -427,8 +419,6 @@ class VideoEditorViewController: UIViewController, UIPickerViewDelegate, UIPicke
             }
         }
     }
-
-
 
 
     // MARK: - PickerView DataSource Methods
