@@ -2,25 +2,30 @@ import UIKit
 import AVFoundation
 import Photos
 
-class VideoEditorViewController: UIViewController {
+class VideoEditorViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSource {
 
     var player: AVPlayer!
     var playerLayer: AVPlayerLayer!
     var videoURL: URL?
     var filters = ["none", "CISepiaTone", "CIColorControls"] // Beschikbare filters
-    var selectedFilter: String = "none" // Standaardfilter
-    var textInput: UITextField! // Invoer voor gebruikers tekst
-    var overlayText: String = "" // Plaatsvervanger voor overlay tekst
-    var filterPicker: UIPickerView! // Picker voor filters
-    var trimSlider: UISlider!
-    var stackView: UIStackView! // Houd een referentie naar de stack view
+    var selectedFilter: String = "none" // Huidig geselecteerde filter
+    var textInput: UITextField!
+    var overlayText: String = "" // Text overlay
+    var filterPicker: UIPickerView! // Typo was hier, moest UIPickerView zijn
+    var trimSlider: UISlider = {
+        let slider = UISlider()
+        slider.minimumValue = 0
+        slider.maximumValue = 1
+        slider.value = 1
+        return slider
+    }()
+    var stackView: UIStackView!
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupUI()
+        setupUI() // UI opzetten
     }
 
-    // Setup UI
     func setupUI() {
         view.backgroundColor = .white
 
@@ -29,7 +34,6 @@ class VideoEditorViewController: UIViewController {
         videoPlayerView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(videoPlayerView)
 
-        // Constraints voor video player view
         NSLayoutConstraint.activate([
             videoPlayerView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             videoPlayerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -37,10 +41,11 @@ class VideoEditorViewController: UIViewController {
             videoPlayerView.heightAnchor.constraint(equalToConstant: 300)
         ])
 
-        // Maak knoppen
+        // Knoppen voor de verschillende functies
         let importButton = createButton(title: "Import Video", action: #selector(importVideo))
         let applyFilterButton = createButton(title: "Apply Filter", action: #selector(applyFilter))
         let trimButton = createButton(title: "Trim Video", action: #selector(trimVideo))
+
         let addTextButton = createButton(title: "Add Text", action: #selector(addText))
         let exportButton = createButton(title: "Export Video", action: #selector(exportVideo))
 
@@ -49,22 +54,20 @@ class VideoEditorViewController: UIViewController {
         stackView.axis = .vertical
         stackView.spacing = 20
         stackView.translatesAutoresizingMaskIntoConstraints = false
-
         view.addSubview(stackView)
 
-        // Constraints voor stack view
         NSLayoutConstraint.activate([
             stackView.topAnchor.constraint(equalTo: videoPlayerView.bottomAnchor, constant: 20),
             stackView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             stackView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
         ])
 
-        // Filter Picker
-        filterPicker = UIPickerView()
+        // Picker voor filters
+        filterPicker = UIPickerView() // Correcte naam is UIPickerView
         filterPicker.delegate = self
         filterPicker.dataSource = self
         filterPicker.translatesAutoresizingMaskIntoConstraints = false
-        filterPicker.isHidden = true // Aanvankelijk verborgen
+        filterPicker.isHidden = true // Begin verborgen
         view.addSubview(filterPicker)
 
         NSLayoutConstraint.activate([
@@ -73,14 +76,10 @@ class VideoEditorViewController: UIViewController {
             filterPicker.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         ])
 
-        // Trim Slider
-        trimSlider = UISlider()
-        trimSlider.minimumValue = 0
-        trimSlider.maximumValue = 1
-        trimSlider.value = 1 // Standaardwaarde (volledige lengte)
+        // Slider voor het trimmen van de video
         trimSlider.addTarget(self, action: #selector(trimSliderChanged(_:)), for: .valueChanged)
         trimSlider.translatesAutoresizingMaskIntoConstraints = false
-        trimSlider.isHidden = true // Aanvankelijk verborgen
+        trimSlider.isHidden = false // Begin verborgen
         view.addSubview(trimSlider)
 
         NSLayoutConstraint.activate([
@@ -89,12 +88,12 @@ class VideoEditorViewController: UIViewController {
             trimSlider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
         ])
 
-        // Text Input
+        // Textfield voor het invoeren van overlay tekst
         textInput = UITextField(frame: CGRect(x: 20, y: 0, width: view.frame.width - 40, height: 40))
         textInput.borderStyle = .roundedRect
         textInput.placeholder = "Enter text to overlay"
         textInput.translatesAutoresizingMaskIntoConstraints = false
-        textInput.isHidden = true // Aanvankelijk verborgen
+        textInput.isHidden = true // Begin verborgen
         view.addSubview(textInput)
 
         NSLayoutConstraint.activate([
@@ -104,7 +103,6 @@ class VideoEditorViewController: UIViewController {
         ])
     }
 
-    // Maak een knop
     func createButton(title: String, action: Selector) -> UIButton {
         let button = UIButton(type: .system)
         button.setTitle(title, for: .normal)
@@ -112,33 +110,28 @@ class VideoEditorViewController: UIViewController {
         return button
     }
 
-    // Functie om video te importeren
     @objc func importVideo() {
-        // Direct een video gebruiken uit het project
+        // Laad de video vanuit de bundel
         videoURL = Bundle.main.url(forResource: "kobe_berckmans_", withExtension: "mp4")
         if let videoURL = videoURL {
-            playVideo(url: videoURL)
-            // Zorg ervoor dat alle opties zichtbaar zijn na het importeren van de video
+            playVideo(url: videoURL) // Speel de video af
             filterPicker.isHidden = false // Toon de filter picker
             trimSlider.isHidden = false // Toon de trim slider
-            textInput.isHidden = false // Toon de tekstinvoer
+            textInput.isHidden = false // Toon de text input
         } else {
             print("Video niet gevonden")
         }
     }
 
-    // Functie om video af te spelen
     func playVideo(url: URL) {
-        player = AVPlayer(url: url)
-        playerLayer = AVPlayerLayer(player: player)
-        playerLayer.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 300)
-        playerLayer.videoGravity = .resizeAspect
-        view.layer.addSublayer(playerLayer)
-
-        player.play()
+        player = AVPlayer(url: url) // Maak een AVPlayer met de video URL
+        playerLayer = AVPlayerLayer(player: player) // Maak een layer voor de video
+        playerLayer.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 300) // Stel de grootte van de layer in
+        playerLayer.videoGravity = .resizeAspect // Houd de aspect ratio van de video
+        view.layer.addSublayer(playerLayer) // Voeg de layer toe aan de view
+        player.play() // Begin met afspelen
     }
 
-    // Pas geselecteerde filter toe
     @objc func applyFilter() {
         guard let videoURL = videoURL else {
             print("Video URL is nil")
@@ -146,28 +139,30 @@ class VideoEditorViewController: UIViewController {
         }
         print("Filter toepassen: \(selectedFilter)")
 
-        let asset = AVAsset(url: videoURL)
-        let composition = AVMutableComposition()
+        let asset = AVAsset(url: videoURL) // Maak een AVAsset van de video
+        let composition = AVMutableComposition() // Maak een mutable composition
 
+        // Verkrijg de video en audio tracks van het asset
         guard let videoTrack = asset.tracks(withMediaType: .video).first,
               let audioTrack = asset.tracks(withMediaType: .audio).first else {
             print("Geen video- of audiotrack gevonden.")
             return
         }
 
-        let compositionVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
-        let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+        let compositionVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) // Voeg een videotrack toe aan de composition
+        let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) // Voeg een audiotrack toe aan de composition
 
         do {
+            // Voeg de video- en audiotracks toe aan de composition
             try compositionVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: videoTrack, at: .zero)
             try compositionAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: audioTrack, at: .zero)
 
-            // Maak een video compositie om de filter toe te passen
+            // Maak een video composition voor het toepassen van filters
             let videoComposition = AVMutableVideoComposition(asset: composition) { request in
-                let source = request.sourceImage.clampedToExtent()
-                var outputImage: CIImage?
+                let source = request.sourceImage.clampedToExtent() // Krijg de bronafbeelding
+                var outputImage: CIImage? // Afbeelding na filter
 
-                // Pas geselecteerde filter toe
+                // Pas het geselecteerde filter toe
                 if self.selectedFilter == "none" {
                     outputImage = source
                 } else if self.selectedFilter == "CISepiaTone" {
@@ -184,168 +179,77 @@ class VideoEditorViewController: UIViewController {
                     outputImage = filter.outputImage
                 }
 
-                // Geef de output image of source image terug
-                request.finish(with: outputImage ?? source, context: nil)
+                request.finish(with: outputImage ?? source, context: nil) // Geef het resultaat terug
             }
 
-            // Maak AVPlayerItem en speel af
-            let playerItem = AVPlayerItem(asset: composition)
-            playerItem.videoComposition = videoComposition
-            player.replaceCurrentItem(with: playerItem)
-            player.play()
+            let playerItem = AVPlayerItem(asset: composition) // Maak een AVPlayerItem
+            playerItem.videoComposition = videoComposition // Stel de video composition in
+            player.replaceCurrentItem(with: playerItem) // Vervang de huidige item van de speler
+            player.play() // Speel de video af
 
         } catch {
-            print("Fout bij het toepassen van de filter: \(error)")
+            print("Fout bij het toepassen van filter: \(error)")
         }
     }
+
     @objc func addText() {
-        overlayText = textInput.text ?? ""
-        print("Toevoegen tekst: \(overlayText)")
+        overlayText = textInput.text ?? "" // Verkrijg de overlay tekst
+        print("Overlay tekst toegevoegd: \(overlayText)")
 
-        guard let videoURL = videoURL else {
-            print("Video URL is nil")
-            return
-        }
-
-        let asset = AVAsset(url: videoURL)
-        let composition = AVMutableComposition()
-
-        guard let videoTrack = asset.tracks(withMediaType: .video).first else {
-            print("Geen video- of audiotrack gevonden.")
-            return
-        }
-
-        guard let audioTrack = asset.tracks(withMediaType: .audio).first else {
-            print("Geen audiotrack gevonden.")
-            return
-        }
-
-        let compositionVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
-        let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
-
-        do {
-            try compositionVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: videoTrack, at: .zero)
-            try compositionAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: audioTrack, at: .zero)
-
-            let videoComposition = AVMutableVideoComposition(asset: composition) { request in
-                let source = request.sourceImage.clampedToExtent()
-
-                // Maak de overlay layer
-                let overlayLayer = CALayer()
-                overlayLayer.frame = CGRect(origin: .zero, size: source.extent.size)
-
-                // Maak de tekst layer
-                let textLayer = CATextLayer()
-                textLayer.string = self.overlayText
-                textLayer.fontSize = 36
-                textLayer.foregroundColor = UIColor.red.cgColor
-                textLayer.alignmentMode = .center
-                textLayer.contentsScale = UIScreen.main.scale
-                textLayer.frame = CGRect(x: 0, y: source.extent.height - 100, width: source.extent.width, height: 100)
-                overlayLayer.addSublayer(textLayer)
-
-                // Creëer een CIContext om de afbeelding te renderen
-                let ciContext = CIContext()
-
-                // Render de video in een CGImage
-                guard let cgImage = ciContext.createCGImage(source, from: source.extent) else {
-                    print("Fout bij het creëren van CGImage")
-                    return request.finish(with: source, context: nil)
-                }
-
-                // Begin de context voor het tekenen
-                UIGraphicsBeginImageContext(source.extent.size)
-                guard let context = UIGraphicsGetCurrentContext() else {
-                    print("Kan geen graphics context verkrijgen")
-                    return request.finish(with: source, context: nil)
-                }
-
-                // Teken de video in de context
-                context.draw(cgImage, in: source.extent)
-
-                // Render de overlay layer in de context
-                overlayLayer.render(in: context)
-
-                // Verkrijg de nieuwe afbeelding met de overlay
-                guard let finalImage = UIGraphicsGetImageFromCurrentImageContext() else {
-                    print("Kan de afbeelding niet verkrijgen")
-                    UIGraphicsEndImageContext()
-                    return request.finish(with: source, context: nil) // Fallback naar de oorspronkelijke afbeelding
-                }
-                UIGraphicsEndImageContext()
-
-                // Zorg ervoor dat we een CIImage teruggeven
-                if let finalCGImage = finalImage.cgImage {
-                    request.finish(with: CIImage(cgImage: finalCGImage), context: nil)
-                } else {
-                    print("Kan de afbeelding niet omzetten naar CIImage")
-                    request.finish(with: source, context: nil) // Fallback naar de oorspronkelijke afbeelding
-                }
-            }
-
-            let playerItem = AVPlayerItem(asset: composition)
-            playerItem.videoComposition = videoComposition
-            player.replaceCurrentItem(with: playerItem)
-            player.play()
-
-        } catch {
-            print("Fout bij het toevoegen van tekst: \(error)")
-        }
+        // Hier kan de logica worden geïmplementeerd om de overlay tekst op de video toe te voegen
+        // Bijvoorbeeld door een UILabel op de video te plaatsen of een tekstlaag te maken in AVComposition
     }
 
-
-    // Trim video
-    @objc func trimVideo() {
-        print("Trimmen van video op basis van slider waarde")
+    @objc func trimSliderChanged(_ sender: UISlider) {
         guard let videoURL = videoURL else {
             print("Video URL is nil")
             return
         }
 
         let asset = AVAsset(url: videoURL)
-        let composition = AVMutableComposition()
+        let duration = asset.duration.seconds // Totale duur van de video
+        let trimmedDuration = duration * Double(sender.value) // Bereken de nieuwe duur
 
+        // Creëer een nieuwe AVMutableComposition
+        let composition = AVMutableComposition()
         guard let videoTrack = asset.tracks(withMediaType: .video).first,
               let audioTrack = asset.tracks(withMediaType: .audio).first else {
             print("Geen video- of audiotrack gevonden.")
             return
         }
 
-        let compositionVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
-        let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
-
-        // Bepaal de trim tijd op basis van slider
-        let trimDuration = CMTimeMultiplyByFloat64(asset.duration, multiplier: Float64(trimSlider.value))
-
         do {
-            try compositionVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: trimDuration), of: videoTrack, at: .zero)
-            try compositionAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: trimDuration), of: audioTrack, at: .zero)
+            // Voeg video- en audiotracks toe met de nieuwe duur
+            let compositionVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
+            let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
 
+            let newDuration = CMTime(seconds: trimmedDuration, preferredTimescale: 600)
+            try compositionVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: newDuration), of: videoTrack, at: .zero)
+            try compositionAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: newDuration), of: audioTrack, at: .zero)
+
+            // Vervang de huidige speleritem met de nieuwe compositie
             let playerItem = AVPlayerItem(asset: composition)
             player.replaceCurrentItem(with: playerItem)
-            player.play()
+            player.play() // Speel de nieuwe video af
 
         } catch {
             print("Fout bij het trimmen van de video: \(error)")
         }
     }
 
-    // Update trim slider
-    @objc func trimSliderChanged(_ sender: UISlider) {
-        print("Trim slider waarde: \(sender.value)")
-    }
 
-    // Export video
-    @objc func exportVideo() {
-        print("Exporteren van de bewerkte video")
+    @objc func trimVideo() {
         guard let videoURL = videoURL else {
             print("Video URL is nil")
             return
         }
 
-        let asset = AVAsset(url: videoURL)
-        let composition = AVMutableComposition()
+        print("Trim video")
+        print("Slider waarde: \(trimSlider.value)") // Debug info
+        let asset = AVAsset(url: videoURL) // Maak een AVAsset van de video
+        let composition = AVMutableComposition() // Maak een mutable composition
 
+        // Verkrijg de video en audio tracks
         guard let videoTrack = asset.tracks(withMediaType: .video).first,
               let audioTrack = asset.tracks(withMediaType: .audio).first else {
             print("Geen video- of audiotrack gevonden.")
@@ -356,43 +260,65 @@ class VideoEditorViewController: UIViewController {
         let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
 
         do {
-            try compositionVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: videoTrack, at: .zero)
-            try compositionAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: audioTrack, at: .zero)
+            // Bereken de nieuwe duur op basis van de sliderwaarde
+            let duration = asset.duration.seconds * Double(trimSlider.value)
+            let newDuration = CMTime(seconds: duration, preferredTimescale: 600) // Nieuwe duur van de video
+            try compositionVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: newDuration), of: videoTrack, at: .zero)
+            try compositionAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: newDuration), of: audioTrack, at: .zero)
 
-            // Export configureren
-            let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)!
-            let exportURL = FileManager.default.temporaryDirectory.appendingPathComponent("exported_video.mov")
-            exportSession.outputURL = exportURL
-            exportSession.outputFileType = .mov
-
-            exportSession.exportAsynchronously {
-                switch exportSession.status {
-                case .completed:
-                    print("Export voltooid: \(exportURL)")
-                    // Sla op in fotobibliotheek
-                    PHPhotoLibrary.shared().performChanges({
-                        PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: exportURL)
-                    }) { success, error in
-                        if success {
-                            print("Video opgeslagen in fotobibliotheek")
-                        } else {
-                            print("Fout bij opslaan in fotobibliotheek: \(String(describing: error))")
-                        }
-                    }
-                case .failed, .cancelled:
-                    print("Export mislukt: \(String(describing: exportSession.error))")
-                default:
-                    break
-                }
-            }
+            let playerItem = AVPlayerItem(asset: composition)
+            player.replaceCurrentItem(with: playerItem)
+            player.play()
 
         } catch {
-            print("Fout bij het voorbereiden van de export: \(error)")
+            print("Fout bij het trimmen van de video: \(error.localizedDescription)")
         }
     }
-}
 
-extension VideoEditorViewController: UIPickerViewDelegate, UIPickerViewDataSource {
+
+
+
+    @objc func exportVideo() {
+        guard let composition = player.currentItem?.asset as? AVMutableComposition else {
+            print("Huidige item is geen AVMutableComposition")
+            return
+        }
+
+        let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)!
+        let exportURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("exportedVideo.mov") // Export pad
+        exportSession.outputURL = exportURL
+        exportSession.outputFileType = .mov
+
+        exportSession.exportAsynchronously {
+            switch exportSession.status {
+            case .completed:
+                print("Video succesvol geëxporteerd naar: \(exportURL)")
+                // Optioneel: sla de video op in de foto bibliotheek
+                self.saveVideoToLibrary(url: exportURL)
+            case .failed:
+                print("Export mislukt: \(String(describing: exportSession.error))")
+            case .cancelled:
+                print("Export geannuleerd: \(String(describing: exportSession.error))")
+            default:
+                break
+            }
+        }
+    }
+
+    func saveVideoToLibrary(url: URL) {
+        PHPhotoLibrary.shared().performChanges({
+            PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+        }) { success, error in
+            if success {
+                print("Video opgeslagen in de fotobibliotheek.")
+            } else {
+                print("Fout bij het opslaan van de video: \(String(describing: error))")
+            }
+        }
+    }
+
+    // MARK: - UIPickerViewDelegate & UIPickerViewDataSource
+
     func numberOfComponents(in pickerView: UIPickerView) -> Int {
         return 1
     }
@@ -406,6 +332,8 @@ extension VideoEditorViewController: UIPickerViewDelegate, UIPickerViewDataSourc
     }
 
     func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
-        selectedFilter = filters[row]
+        selectedFilter = filters[row] // Stel het geselecteerde filter in
+        print("Filter geselecteerd: \(selectedFilter)")
     }
 }
+
