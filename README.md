@@ -41,3 +41,6 @@ Volg deze stappen om het project lokaal te installeren en draaien:
 - **SwiftUI Overzicht**: [https://developer.apple.com/xcode/swiftui/](https://developer.apple.com/xcode/swiftui/)
 - **ChatGPT**: (https://chatgpt.com)
 
+- **OpenCV tutorial**: (https://www.youtube.com/watch?v=DLOO-ZikQwY&t=71s)
+
+ - **Videoplayer tutorial** (https://www.youtube.com/watch?v=ELTMUkKbvus)
