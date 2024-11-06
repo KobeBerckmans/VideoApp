@@ -22,7 +22,7 @@ Volg deze stappen om het project lokaal te installeren en draaien:
 
 1. Clone de repository:
     ```bash
-    git clone https://github.com/jouwgebruikersnaam/VideoEditor.git
+    git clone https://github.com/KobeBerckmans/VideoEditor.git
     ```
 2. Open het project in Xcode.
 3. Zorg ervoor dat je een geschikt apparaat of simulator hebt ingesteld om de app te testen.
