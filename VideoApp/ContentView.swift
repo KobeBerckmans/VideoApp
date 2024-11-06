@@ -29,7 +29,7 @@ struct ContentView: View {
             .padding()
         }
         .padding()
-        .fullScreenCover(isPresented: $showVideoEditor) { // Present the VideoEditorViewController
+        .fullScreenCover(isPresented: $showVideoEditor) { 
             VideoEditorViewControllerWrapper()
         }
     }
